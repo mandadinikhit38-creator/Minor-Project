@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0E0E0B">
+  <meta name="description" content="Inspect a URL for phishing signals before you visit.">
+  <title>PhishLens — Check a link before you click</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=responsive-2">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PhishLens home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 3 27 7v8c0 7.1-4.7 12.1-11 14-6.3-1.9-11-6.9-11-14V7l11-4Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m11.5 16 3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span>phish<span class="brand-accent">lens</span></span>
+      </a>
+      <nav class="top-actions" aria-label="Main navigation">
+        <a href="#how-it-works" class="nav-link">How it works</a>
+        <a href="/tools" class="nav-link">Tools</a>
+        <a href="/about" class="nav-link">About</a>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme" title="Switch theme"><span id="theme-icon">☼</span></button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow"><span class="pulse-dot"></span> REAL-TIME LINK ANALYSIS</div>
+        <h1>Think before<br class="mobile-break"> you <span class="gradient-text">click.</span></h1>
+        <p class="hero-copy">Check any link for phishing signals, suspicious redirects, and risky page behavior — before you visit.</p>
+        <form id="scan-form" class="scan-form" novalidate>
+          <span class="input-icon" aria-hidden="true">↗</span>
+          <input id="url-input" type="url" autocomplete="url" spellcheck="false" placeholder="Paste a URL to inspect (e.g. https://example.com)" aria-label="Website URL" maxlength="2048">
+          <button id="scan-button" class="scan-button" type="submit"><span class="button-label">Scan URL</span><span class="button-arrow" aria-hidden="true">→</span></button>
+        </form>
+        <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+        <div class="trust-note"><span class="lock-icon">◇</span> Safe to scan · We never open links in your browser</div>
+      </section>
+
+      <section id="result-section" class="result-section hidden" aria-live="polite"></section>
+
+      <section id="how-it-works" class="features-section">
+        <div class="section-heading"><div><div class="eyebrow">LINK INTELLIGENCE</div><h2>More than a quick glance.</h2></div><p>Multiple signals, one clearer picture.</p></div>
+        <div class="feature-grid">
+          <article class="feature-card"><div class="feature-icon purple">⌕</div><h3>URL signals</h3><p>We look for suspicious structures, deceptive subdomains, risky words, and brand impersonation.</p></article>
+          <article class="feature-card"><div class="feature-icon cyan">◈</div><h3>Domain &amp; certificate</h3><p>Check DNS, HTTPS certificate details, and domain registration age where available.</p></article>
+          <article class="feature-card"><div class="feature-icon green">⌘</div><h3>Page behavior &amp; AI</h3><p>Inspect redirects and page behavior, with an optional locally trained deep-learning model for URL patterns.</p></article>
+        </div>
+      </section>
+
+      <section class="history-section">
+        <div class="history-heading"><div><div class="eyebrow">YOUR RECENT CHECKS</div><h2>Scan history</h2></div><button id="clear-history" class="text-button hidden" type="button">Clear history</button></div>
+        <div id="history-list" class="history-list"><div class="empty-history"><span>◷</span><p>Your recent scans will appear here.</p></div></div>
+      </section>
+      <p class="disclaimer">PhishLens is an informational tool. A safe result does not guarantee that a website is harmless. Avoid entering sensitive information on sites you don't trust.</p>
+    </main>
+    <footer><a class="brand footer-brand" href="/"><span class="brand-mark small-mark">◇</span><span>phish<span class="brand-accent">lens</span></span></a><span>Made by Mandadi Nikhit</span><span class="footer-status"><i></i> Scanner operational</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js?v=verdict-above-3" defer></script>
+</body>
+</html>

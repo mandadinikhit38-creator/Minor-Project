@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0E0E0B">
+  <meta name="description" content="Use PhishLens utilities to check SSL, DNS, redirects, domain age, IP reputation, and website risk.">
+  <title>Tools — PhishLens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=responsive-2">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PhishLens home">
+        <span class="brand-mark" aria-hidden="true">◇</span>
+        <span>phish<span class="brand-accent">lens</span></span>
+      </a>
+      <nav class="top-actions" aria-label="Main navigation">
+        <a href="/" class="nav-link">Scanner</a>
+        <a href="/tools" class="nav-link" aria-current="page">Tools</a>
+        <a href="/about" class="nav-link">About</a>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme" title="Switch theme"><span id="theme-icon">☼</span></button>
+      </nav>
+    </header>
+    <main>
+      <section class="page-hero">
+        <div class="eyebrow">PHISHLENS UTILITIES</div>
+        <h1>Tools to check<br class="mobile-break"> before you trust.</h1>
+        <p class="hero-copy">Run focused checks using PhishLens. Password checks stay in your browser; QR and UPI tools run on this site.</p>
+      </section>
+      <section class="tools-section tools-page-section">
+        <div class="tool-grid">
+          <article class="tool-card"><h2>SSL Checker</h2><p>Verify the HTTPS certificate presented by a website.</p><form class="tool-form" data-tool="ssl"><label class="visually-hidden" for="tool-ssl">Website URL or domain</label><input id="tool-ssl" name="value" placeholder="example.com" required maxlength="2048"><button type="submit">Check SSL</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+          <article class="tool-card"><h2>DNS Lookup</h2><p>Resolve public IPv4 and IPv6 addresses for a domain.</p><form class="tool-form" data-tool="dns"><label class="visually-hidden" for="tool-dns">Website URL or domain</label><input id="tool-dns" name="value" placeholder="example.com" required maxlength="2048"><button type="submit">Look up DNS</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+          <article class="tool-card"><h2>Link Expander</h2><p>Follow a link’s redirects safely and show its final destination.</p><form class="tool-form" data-tool="expand"><label class="visually-hidden" for="tool-expand">Shortened URL</label><input id="tool-expand" name="value" placeholder="https://short.link/..." required maxlength="2048"><button type="submit">Expand link</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+          <article class="tool-card"><h2>Website Age</h2><p>Check domain registration age when public RDAP data is available.</p><form class="tool-form" data-tool="age"><label class="visually-hidden" for="tool-age">Website URL or domain</label><input id="tool-age" name="value" placeholder="example.com" required maxlength="2048"><button type="submit">Check age</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+          <article class="tool-card"><h2>IP Reputation</h2><p>Check a public IP against VirusTotal. Requires a configured API key.</p><form class="tool-form" data-tool="ip-reputation"><label class="visually-hidden" for="tool-ip-reputation">Public IP address</label><input id="tool-ip-reputation" name="value" placeholder="8.8.8.8" required maxlength="64"><button type="submit">Check IP</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+          <article class="tool-card"><h2>Scam Website Checker</h2><p>Run the full PhishLens risk scan and review triggered signals.</p><form class="tool-form" data-tool="scam-check"><label class="visually-hidden" for="tool-scam-check">Website URL</label><input id="tool-scam-check" name="value" placeholder="https://example.com" required maxlength="2048"><button type="submit">Check website</button></form><p class="tool-output" role="status" aria-live="polite"></p></article>
+        </div>
+        <section class="local-tools" aria-labelledby="local-tools-heading">
+          <div class="section-heading"><div><div class="eyebrow">PRIVATE BY DESIGN</div><h2 id="local-tools-heading">More security tools</h2></div></div>
+          <div class="local-tool-grid">
+            <article class="local-tool-card">
+              <h3>Password Check</h3>
+              <p>Get a local strength estimate. Your password is never sent or saved.</p>
+              <label class="visually-hidden" for="password-check-input">Password to check</label>
+              <div class="password-input-row"><input id="password-check-input" type="password" autocomplete="off" spellcheck="false" placeholder="Enter a password to check"><button id="password-visibility" type="button" aria-label="Show password">Show</button></div>
+              <div class="password-meter" role="meter" aria-label="Password strength" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><span></span></div>
+              <p id="password-check-output" class="local-tool-output" role="status" aria-live="polite">Password checks run only in this browser.</p>
+            </article>
+            <article class="local-tool-card">
+              <h3>QR Tools</h3>
+              <p>Create and read QR codes in this browser. QR content is not sent to a server or opened automatically.</p>
+              <form id="qr-generate-form" class="local-tool-form">
+                <label class="visually-hidden" for="qr-content">Text or URL to encode</label>
+                <input id="qr-content" name="value" placeholder="Text or URL (up to 2,048 UTF-8 bytes)" maxlength="2048" required>
+                <button type="submit">Create QR</button>
+              </form>
+              <div id="qr-generated-output" class="local-tool-output" role="status" aria-live="polite"></div>
+              <div class="qr-read-tools">
+                <label for="qr-image-input">Read QR from image</label>
+                <input id="qr-image-input" type="file" accept="image/png,image/jpeg,image/webp">
+                <button id="qr-image-read" type="button" disabled>Read image</button>
+                <div class="qr-camera-controls">
+                  <button id="qr-camera-start" type="button">Start camera</button>
+                  <button id="qr-camera-capture" type="button" disabled>Capture frame</button>
+                  <button id="qr-camera-stop" type="button" disabled>Stop camera</button>
+                </div>
+                <video id="qr-camera-preview" class="qr-camera-preview hidden" playsinline muted></video>
+                <canvas id="qr-camera-canvas" class="hidden"></canvas>
+                <p id="qr-read-output" class="local-tool-output" role="status" aria-live="polite"></p>
+              </div>
+            </article>
+            <article class="local-tool-card">
+              <h3>UPI ID Check</h3>
+              <p>Check the format of a UPI ID locally. This does not verify the account, owner, or whether it can receive payments.</p>
+              <form id="upi-check-form" class="local-tool-form">
+                <label class="visually-hidden" for="upi-id-input">UPI ID</label>
+                <input id="upi-id-input" name="value" inputmode="email" autocomplete="off" placeholder="name@bank" maxlength="320" required>
+                <button type="submit">Check format</button>
+              </form>
+              <p id="upi-check-output" class="local-tool-output" role="status" aria-live="polite"></p>
+            </article>
+          </div>
+        </section>
+      </section>
+      <p class="disclaimer">Network-based results depend on available public data and configured providers. Local password, QR, and UPI format tools do not verify that a password is uncompromised, a QR destination is safe, or a UPI account is valid.</p>
+    </main>
+    <footer><a class="brand footer-brand" href="/"><span class="brand-mark small-mark">◇</span><span>phish<span class="brand-accent">lens</span></span></a><span>Made by Mandadi Nikhit</span><span class="footer-status"><i></i> Scanner operational</span></footer>
+  </div>
+  <script src="/static/qr-reader.js?v=1" defer></script>
+  <script src="/static/tools.js?v=local-tools-2" defer></script>
+</body>
+</html>

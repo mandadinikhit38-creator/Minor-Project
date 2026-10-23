@@ -1,0 +1,1 @@
+# Add exact phishing URLs or domains, one per line. Keep this feed current.
