@@ -1,0 +1,14 @@
+{
+  "name": "phishlens-local-tools",
+  "private": true,
+  "scripts": {
+    "build": "esbuild static/qr-reader-entry.js --bundle --minify --legal-comments=inline --outfile=static/qr-reader.js"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
