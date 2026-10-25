@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    load_dotenv = None
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +25,8 @@ from app.scanner import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+if load_dotenv is not None:
+    load_dotenv(ROOT / ".env")
 
 app = FastAPI(title="PhishLens", description="URL phishing risk analysis", version="1.0.0")
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
