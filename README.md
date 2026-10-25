@@ -32,6 +32,12 @@ uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}
 
 The root `server.py` exports the ASGI application. The included `Dockerfile` is the portable option for hosts that support containers; it listens on the host-provided `PORT` and falls back to `8000` for local use. Do not deploy this project as a static-only site: that will not run FastAPI or its API endpoints and can produce a host-generated 404 page.
 
+### Deploy to Vercel
+
+Connect the repository with Vercel's Project Root Directory set to the repository root (`.` or blank). Keep the Python framework preset and default dependency installation; `requirements.txt` and `pyproject.toml` are both at that root. The supported `server.py` entry point exports `server:app` through `tool.vercel.entrypoint`. Vercel routes requests to the FastAPI app directly, so no legacy `builds` configuration, `api/` wrapper, or catch-all rewrite is needed. `vercel.json` explicitly includes the static pages/assets and local feed used by the app. The UI and API share one origin, so CORS middleware is not required. Put optional provider credentials in Vercel Environment Variables, never in source control.
+
+Vercel runs the app as serverless functions: each scan is synchronous and makes outbound network calls, so a slow target or provider can exceed the function duration limit. The in-memory rate limiter is per function instance, not global. Function filesystems are temporary; do not rely on runtime writes for persistent model artifacts or generated data. The current service does not start background workers, and optional ML models are not bundled by default.
+
 Set optional provider keys such as `GOOGLE_SAFE_BROWSING_API_KEY` and `VIRUSTOTAL_API_KEY` in the hosting provider's Environment Variables; `.env` is local-only and is not deployed. The QR camera feature requires HTTPS in production. If you change `static/qr-reader-entry.js`, rebuild and commit the generated `static/qr-reader.js` with `npm run build` before deploying.
 
 ## Configuration
