@@ -29,10 +29,12 @@
         if (!item) return item;
         const storedScore = Number(item.risk_score);
         if (!Number.isFinite(storedScore)) return item;
-        const riskScore = storedScore > 10
-          ? Math.max(1, Math.min(10, Math.round(storedScore / 10 * 10) / 10))
-          : storedScore;
-        const verdict = riskScore >= 6 ? "Phishing" : riskScore > 3 ? "Suspicious" : "Safe";
+        const storedMaxScore = Number(item.result?.max_score);
+        const sourceMaxScore = Number.isFinite(storedMaxScore) && storedMaxScore > 0
+          ? storedMaxScore
+          : 10;
+        const riskScore = Math.max(0, Math.min(5, Math.round(storedScore / sourceMaxScore * 5 * 10) / 10));
+        const verdict = riskScore >= 3.5 ? "High Risk" : riskScore >= 1.5 ? "Medium Risk" : "Low Risk";
         return {
           ...item,
           risk_score: riskScore,
@@ -40,7 +42,7 @@
           result: item.result ? {
             ...item.result,
             risk_score: riskScore,
-            max_score: 10,
+            max_score: 5,
             verdict,
           } : item.result,
         };
@@ -60,7 +62,12 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toast.classList.remove("visible"), 2600);
   }
-  function verdictClass(verdict) { return verdict.toLowerCase(); }
+  function verdictClass(verdict) {
+    const value = String(verdict || "").toLowerCase();
+    if (value.includes("low")) return "safe";
+    if (value.includes("high")) return "phishing";
+    return "suspicious";
+  }
   function displayTime(value) {
     try { return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); }
     catch { return "Just now"; }
@@ -71,14 +78,17 @@
       historyList.innerHTML = '<div class="empty-history"><span>◷</span><p>Your recent scans will appear here.</p></div>';
       return;
     }
-    historyList.innerHTML = scans.map((item, index) => `
+    historyList.innerHTML = scans.map((item, index) => {
+      const tone = item.verdict === "Low Risk" ? "green" : item.verdict === "High Risk" ? "red" : "yellow";
+      return `
       <button type="button" class="history-row" data-history-index="${index}">
-        <span class="history-dot" style="background:var(--${item.verdict === "Safe" ? "green" : item.verdict === "Phishing" ? "red" : "yellow"})"></span>
+        <span class="history-dot" style="background:var(--${tone})"></span>
         <span class="history-url">${escapeHtml(item.url)}</span>
-        <span class="history-verdict" style="color:var(--${item.verdict === "Safe" ? "green" : item.verdict === "Phishing" ? "red" : "yellow"})">${escapeHtml(item.verdict)}</span>
-        <span class="history-score">${Number(item.risk_score)}/10</span>
+        <span class="history-verdict" style="color:var(--${tone})">${escapeHtml(item.verdict)}</span>
+        <span class="history-score">${Number(item.risk_score)}/${Number(item.result?.max_score ?? 5)}</span>
         <span class="history-date">${escapeHtml(displayTime(item.scanned_at))}</span>
-      </button>`).join("");
+      </button>`;
+    }).join("");
     historyList.querySelectorAll("[data-history-index]").forEach((row) => row.addEventListener("click", () => {
       const item = scans[Number(row.dataset.historyIndex)];
       if (item?.result) renderResult(item.result);
@@ -95,11 +105,11 @@
     const xgboostModel = details.xgboost_model || {};
     const checks = data.all_checks || data.checks || [];
     const triggered = new Set((data.checks || []).map((check) => check.name));
-    const color = data.verdict === "Safe" ? "var(--green)" : data.verdict === "Phishing" ? "var(--red)" : "var(--yellow)";
+    const color = data.verdict === "Low Risk" ? "var(--green)" : data.verdict === "High Risk" ? "var(--red)" : "var(--yellow)";
     const radius = 45;
     const circumference = 2 * Math.PI * radius;
-    const maxScore = Number(data.max_score) || 10;
-    const score = Math.max(1, Math.min(maxScore, Number(data.risk_score)));
+    const maxScore = Number(data.max_score) || 5;
+    const score = Math.max(0, Math.min(maxScore, Number(data.risk_score)));
     const offset = circumference * (1 - score / maxScore);
     const checkList = checks.filter((check) => triggered.has(check.name));
     const ssl = domain.ssl || {};
@@ -128,7 +138,7 @@
         <div class="result-main">
           <div class="score-panel">
             <div class="score-gauge"><svg viewBox="0 0 100 100" aria-label="Risk score ${score} out of ${maxScore}"><circle class="gauge-track" cx="50" cy="50" r="${radius}"></circle><circle class="gauge-value" cx="50" cy="50" r="${radius}" style="stroke:${color};stroke-dasharray:${circumference};stroke-dashoffset:${offset}"></circle></svg><div class="score-number">${score}<small>/ ${maxScore}</small></div></div>
-            <div><div class="score-caption">${data.verdict === "Safe" ? "Low risk detected" : data.verdict === "Phishing" ? "High risk detected" : "Use caution"}</div><div class="score-note">Suspicious above 3 · Phishing at 6. Estimate only, not a guarantee.</div></div>
+            <div><div class="score-caption">${data.verdict === "Low Risk" ? "Low risk detected" : data.verdict === "High Risk" ? "High risk detected" : "Use caution"}</div><div class="score-note">Medium risk starts at 1.5 · High risk starts at 3.5. Estimate only, not a guarantee.</div></div>
           </div>
           <div class="checks-panel"><h3>Triggered checks <span style="color:var(--muted);font-weight:400">(${checkList.length})</span></h3>
             ${checkList.length ? `<div class="check-list">${checkList.map((check) => `<div class="check-item triggered"><span class="check-icon">!</span><div><div class="check-title">${escapeHtml(check.title)}</div><div class="check-copy">${escapeHtml(check.explanation)}</div></div></div>`).join("")}</div>` : '<div class="empty-checks">✓ No high-risk signals were detected by this scan.</div>'}
@@ -174,8 +184,8 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || `Scan failed (${response.status}). Try again.`);
       renderResult(result);
-      if (Number(result.risk_score) > 5) {
-        window.alert(`Warning: this URL has a high risk score of ${result.risk_score}/10 (${result.verdict}).`);
+      if (Number(result.risk_score) >= 3.5) {
+        window.alert(`Warning: this URL has a high risk score of ${result.risk_score}/${result.max_score} (${result.verdict}).`);
       }
       scans = [{ url: result.url, verdict: result.verdict, risk_score: result.risk_score, scanned_at: result.scanned_at, result }, ...scans.filter((item) => item.url !== result.url)].slice(0, 8);
       if (!storageSet(HISTORY_KEY, JSON.stringify(scans))) showToast("Scan complete. Browser storage is unavailable.");

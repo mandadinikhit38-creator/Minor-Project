@@ -12,6 +12,7 @@ import time
 import base64
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from functools import lru_cache
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from pathlib import Path
@@ -60,6 +61,13 @@ class ScanError(ValueError):
     """An invalid URL or a target that must not be contacted."""
 
 
+def _is_public_ip(value: str) -> bool:
+    try:
+        return ipaddress.ip_address(value.strip("[]")).is_global
+    except ValueError:
+        return False
+
+
 def normalize_url(raw_url: str) -> str:
     value = raw_url.strip()
     if not value:
@@ -76,7 +84,7 @@ def normalize_url(raw_url: str) -> str:
     if parts.scheme.lower() not in {"http", "https"}:
         raise ScanError("Only HTTP and HTTPS URLs can be scanned.")
     if not parts.hostname or parts.username is not None or parts.password is not None:
-        raise ScanError("Enter a valid public website URL without embedded credentials.")
+        raise ScanError("Enter a valid website URL without embedded credentials.")
     host = parts.hostname.rstrip(".").lower()
     try:
         host = host.encode("idna").decode("ascii")
@@ -91,35 +99,39 @@ def normalize_url(raw_url: str) -> str:
     except ValueError:
         address = None
     if address is not None and not address.is_global:
-        raise ScanError("Private, reserved, and loopback IP addresses cannot be scanned.")
+        # Allow static analysis of private/loopback addresses, but block network requests later.
+        pass
     netloc = f"[{host}]" if ":" in host else host
     if port is not None and not ((parts.scheme.lower() == "https" and port == 443) or (parts.scheme.lower() == "http" and port == 80)):
         netloc += f":{port}"
     return urlunsplit((parts.scheme.lower(), netloc, parts.path or "/", parts.query, ""))
 
 
+@lru_cache(maxsize=2048)
 def resolve_public(host: str, port: int) -> list[str]:
+    host = (host or "").strip("[]")
     try:
-        literal = ipaddress.ip_address(host.strip("[]"))
-        addresses = [str(literal)]
+        literal = ipaddress.ip_address(host)
     except ValueError:
-        try:
-            addresses = list({
-                item[4][0]
-                for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-            })
-        except OSError as exc:
-            raise ScanError("The domain could not be resolved. Check the URL and try again.") from exc
-    if not addresses:
-        raise ScanError("The domain did not resolve to an address.")
+        literal = None
+    if literal is not None:
+        return [str(literal)] if literal.is_global else []
+    try:
+        addresses = list({
+            item[4][0]
+            for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        })
+    except OSError:
+        return []
+    public = []
     for address in addresses:
         try:
             parsed = ipaddress.ip_address(address.split("%", 1)[0])
-        except ValueError as exc:
-            raise ScanError("The domain resolved to an invalid network address.") from exc
-        if not parsed.is_global:
-            raise ScanError("This website resolves to a private or reserved network address and cannot be scanned.")
-    return addresses
+        except ValueError:
+            continue
+        if parsed.is_global:
+            public.append(str(parsed))
+    return public
 
 
 def _connect(url: str) -> tuple[http.client.HTTPConnection, str]:
@@ -127,6 +139,8 @@ def _connect(url: str) -> tuple[http.client.HTTPConnection, str]:
     host = parts.hostname or ""
     port = parts.port or (443 if parts.scheme == "https" else 80)
     addresses = resolve_public(host, port)
+    if not addresses:
+        raise ScanError("Network checks were skipped because the host is unresolved, private, or reserved.")
     last_error: OSError | None = None
     for address in addresses:
         try:
@@ -309,15 +323,15 @@ def _registrable_domain(host: str) -> str:
         return ".".join(labels[-2:]) if len(labels) > 1 else host
 
 
-def _domain_details(host: str, scheme: str, address: str, port: int) -> dict[str, Any]:
+def _domain_details(host: str, scheme: str, address: str | None, port: int) -> dict[str, Any]:
     details: dict[str, Any] = {
         "domain": _registrable_domain(host),
-        "dns": {"status": "resolved", "ip": address},
+        "dns": {"status": "resolved" if address else "unresolved", "ip": address},
         "age_days": None,
         "registered_on": None,
         "ssl": {"valid": None, "issuer": None, "expires_on": None},
     }
-    if scheme == "https":
+    if scheme == "https" and address:
         try:
             tls_socket = _tls_socket(host, address, port)
             try:
@@ -333,6 +347,8 @@ def _domain_details(host: str, scheme: str, address: str, port: int) -> dict[str
             }
         except (OSError, ssl.SSLError, ValueError):
             details["ssl"] = {"valid": False, "issuer": None, "expires_on": None}
+    if not address:
+        details["dns"] = {"status": "warning", "ip": None, "warning": "DNS resolution failed or was skipped for a non-public address."}
     details.update(_rdap_details(details["domain"]))
     return details
 
@@ -355,6 +371,7 @@ def _format_cert_date(value: str | None) -> str | None:
         return value
 
 
+@lru_cache(maxsize=512)
 def _rdap_details(domain: str) -> dict[str, Any]:
     try:
         status, _, content, _ = safe_request(
@@ -389,6 +406,8 @@ def _tool_url(value: str) -> tuple[str, str, str]:
 def check_ssl(value: str) -> dict[str, Any]:
     _, host, domain = _tool_url(value)
     addresses = resolve_public(host, 443)
+    if not addresses:
+        return {"status": "skipped", "domain": domain, "valid": False, "warning": "DNS was unavailable or the target is private/reserved; network verification was skipped."}
     try:
         tls_socket = _tls_socket(host, addresses[0], 443)
     except (OSError, ssl.SSLError, ValueError) as exc:
@@ -411,6 +430,8 @@ def check_ssl(value: str) -> dict[str, Any]:
 def lookup_dns(value: str) -> dict[str, Any]:
     _, host, domain = _tool_url(value)
     addresses = resolve_public(host, 443)
+    if not addresses:
+        return {"status": "unresolved", "domain": domain, "warning": "DNS resolution failed or the target is not a public address.", "records": []}
     return {
         "status": "resolved",
         "domain": domain,
@@ -620,20 +641,33 @@ def scan_url(raw_url: str) -> dict[str, Any]:
     addresses = resolve_public(host, port)
     domain = _registrable_domain(host)
     checks = _url_checks(url, host, domain)
-    details = _domain_details(host, parts.scheme, addresses[0], port)
+    details = _domain_details(host, parts.scheme, addresses[0] if addresses else None, port)
+    if not addresses:
+        checks.append(_check(
+            "dns_warning",
+            "DNS resolution unavailable or skipped",
+            False,
+            "The hostname could not be resolved or it points to a private/reserved address. Static analysis still ran, but network content checks were skipped for safety.",
+            0,
+        ))
     if details["ssl"]["valid"] is False and parts.scheme == "https":
         checks.append(_check("ssl_invalid", "HTTPS certificate could not be verified", True, "The HTTPS certificate is invalid, expired, or the secure connection could not be verified.", 18))
     if details.get("age_days") is not None:
         new_domain = details["age_days"] < 180
         checks.append(_check("new_domain", "Recently registered domain", new_domain, f"The domain is approximately {details['age_days']} days old.", 14))
-    try:
-        page, page_checks = _page_details(url, host)
-        checks.extend(page_checks)
-    except (OSError, ssl.SSLError, TimeoutError, http.client.HTTPException, ScanError) as exc:
+    if addresses:
+        try:
+            page, page_checks = _page_details(url, host)
+            checks.extend(page_checks)
+        except (OSError, ssl.SSLError, TimeoutError, http.client.HTTPException, ScanError) as exc:
+            page = {"status_code": None, "redirect_chain": [url], "title": None, "login_form": None,
+                    "forms_cross_domain": None, "hidden_iframes": None, "external_links": None,
+                    "favicon": None, "error": str(exc)}
+            checks.append(_check("page_unavailable", "Page content could not be inspected", False, "The site responded with an error or did not return a supported page.", 0))
+    else:
         page = {"status_code": None, "redirect_chain": [url], "title": None, "login_form": None,
                 "forms_cross_domain": None, "hidden_iframes": None, "external_links": None,
-                "favicon": None, "error": str(exc)}
-        checks.append(_check("page_unavailable", "Page content could not be inspected", False, "The site responded with an error or did not return a supported page.", 0))
+                "favicon": None, "error": "Network content checks skipped because the host could not be resolved or is private/reserved."}
     feed_results = _feed_results(url, domain)
     checks.extend(feed_results["checks"])
     model_result = classify_url(url)

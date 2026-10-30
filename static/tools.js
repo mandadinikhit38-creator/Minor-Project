@@ -250,20 +250,6 @@
   });
   window.addEventListener("pagehide", stopCamera);
 
-  const upiForm = document.querySelector("#upi-check-form");
-  const upiInput = document.querySelector("#upi-id-input");
-  const upiOutput = document.querySelector("#upi-check-output");
-  upiForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const value = upiInput.value.trim();
-    const validFormat = value.length <= 320
-      && /^[A-Za-z0-9][A-Za-z0-9._-]{1,255}@[A-Za-z0-9][A-Za-z0-9.-]{0,62}[A-Za-z0-9]$/.test(value);
-    upiOutput.textContent = validFormat
-      ? "Format looks plausible. This local check does not verify the UPI account, owner, or payment availability."
-      : "This does not match the expected UPI ID format (name@handle). Check the spelling and try again.";
-    upiOutput.dataset.valid = String(validFormat);
-  });
-
   const themeToggle = document.querySelector("#theme-toggle");
   const themeIcon = document.querySelector("#theme-icon");
   function setTheme(theme) {

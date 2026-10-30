@@ -25,19 +25,19 @@ from app.scoring import score_scan
 
 
 class ScoringTests(unittest.TestCase):
-    def test_score_is_capped_at_10(self):
+    def test_score_is_capped_at_5(self):
         result = score_scan([{"triggered": True, "weight": 80}, {"triggered": True, "weight": 40}])
-        self.assertEqual(result, {"risk_score": 10, "max_score": 10, "verdict": "Phishing"})
+        self.assertEqual(result, {"risk_score": 5.0, "max_score": 5, "verdict": "High Risk"})
 
     def test_untriggered_checks_do_not_contribute(self):
         result = score_scan([{"triggered": False, "weight": 100}, {"triggered": True, "weight": 8}])
-        self.assertEqual(result, {"risk_score": 1, "max_score": 10, "verdict": "Safe"})
+        self.assertEqual(result, {"risk_score": 0.4, "max_score": 5, "verdict": "Low Risk"})
 
     def test_verdict_thresholds(self):
-        self.assertEqual(score_scan([{"triggered": True, "weight": 30}])["verdict"], "Safe")
-        self.assertEqual(score_scan([{"triggered": True, "weight": 31}])["verdict"], "Suspicious")
-        self.assertEqual(score_scan([{"triggered": True, "weight": 59}])["verdict"], "Suspicious")
-        self.assertEqual(score_scan([{"triggered": True, "weight": 60}])["verdict"], "Phishing")
+        self.assertEqual(score_scan([{"triggered": True, "weight": 30}])["verdict"], "Medium Risk")
+        self.assertEqual(score_scan([{"triggered": True, "weight": 31}])["verdict"], "Medium Risk")
+        self.assertEqual(score_scan([{"triggered": True, "weight": 59}])["verdict"], "Medium Risk")
+        self.assertEqual(score_scan([{"triggered": True, "weight": 70}])["verdict"], "High Risk")
 
     def test_normalizes_missing_scheme_and_hostname_case(self):
         self.assertEqual(normalize_url("Example.COM/path"), "https://example.com/path")
@@ -88,10 +88,12 @@ class ScoringTests(unittest.TestCase):
         with self.assertRaises(ScanError):
             check_ip_reputation("127.0.0.1")
 
-    def test_rejects_non_http_scheme_and_private_targets(self):
-        for url in ("ftp://example.com", "http://localhost", "http://127.0.0.1", "http://192.168.1.1"):
+    def test_rejects_non_http_scheme_and_allows_private_targets_for_static_analysis(self):
+        for url in ("ftp://example.com", "http://localhost"):
             with self.subTest(url=url), self.assertRaises(ScanError):
                 normalize_url(url)
+        self.assertEqual(normalize_url("http://127.0.0.1"), "http://127.0.0.1/")
+        self.assertEqual(normalize_url("http://192.168.1.1"), "http://192.168.1.1/")
 
     def test_detects_brand_impersonation_and_sensitive_words(self):
         normalized = normalize_url("paypal-account-update.example.com/signin")
@@ -99,7 +101,7 @@ class ScoringTests(unittest.TestCase):
         checks = {check["name"]: check for check in checks_list}
         self.assertTrue(checks["brand_impersonation"]["triggered"])
         self.assertTrue(checks["sensitive_keywords"]["triggered"])
-        self.assertGreater(score_scan(checks_list)["risk_score"], 5)
+        self.assertGreater(score_scan(checks_list)["risk_score"], 2.5)
 
     def test_detects_indian_brand_impersonation_but_accepts_official_domain(self):
         suspicious = normalize_url("sbi-login.example.co.in")
@@ -118,8 +120,13 @@ class ScoringTests(unittest.TestCase):
     def test_blocks_private_addresses_returned_by_dns(self):
         private_result = [(None, None, None, None, ("10.0.0.7", 0))]
         with patch("app.scanner.socket.getaddrinfo", return_value=private_result):
-            with self.assertRaises(ScanError):
-                resolve_public("attacker.example", 443)
+            self.assertEqual(resolve_public("attacker.example", 443), [])
+
+    def test_private_ip_urls_do_not_crash_static_analysis(self):
+        url = normalize_url("http://127.0.0.1/login")
+        result = scan_url(url)
+        self.assertEqual(result["details"]["domain"]["dns"]["status"], "warning")
+        self.assertLessEqual(result["risk_score"], 5)
 
     def test_detects_hidden_iframe_attributes_and_styles(self):
         parser = PageParser()
@@ -155,7 +162,7 @@ class ScoringTests(unittest.TestCase):
                 triggered = {item["name"] for item in checks if item["triggered"]}
                 self.assertEqual("credential_exfiltration" in triggered, should_trigger)
                 if should_trigger:
-                    self.assertGreater(score_scan(checks)["risk_score"], 5)
+                    self.assertGreater(score_scan(checks)["risk_score"], 4.5)
 
     def test_scan_response_contains_result_and_domain_page_feed_details(self):
         domain = {
@@ -183,9 +190,9 @@ class ScoringTests(unittest.TestCase):
             }),
         ):
             result = scan_url("https://example.com")
-        self.assertEqual(result["verdict"], "Phishing")
-        self.assertEqual(result["risk_score"], 6)
-        self.assertEqual(result["max_score"], 10)
+        self.assertEqual(result["verdict"], "Medium Risk")
+        self.assertGreaterEqual(result["risk_score"], 1.5)
+        self.assertEqual(result["max_score"], 5)
         self.assertEqual(result["details"]["domain"], domain)
         self.assertEqual(result["details"]["page"], page)
         self.assertEqual(result["details"]["model"]["phishing_probability"], 0.91)

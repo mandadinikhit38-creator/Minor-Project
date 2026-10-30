@@ -95,6 +95,10 @@ Train the model with a representative labeled URL CSV; validation hosts are held
 
 Training requires at least four distinct URL hosts and both classes represented in training and validation. The trainer reports accuracy, precision, recall, and F1 for its host-separated validation set. Set `PHISHLENS_XGBOOST_MODEL_PATH` to select an artifact and `XGBOOST_PHISHING_THRESHOLD` (default `0.8`, accepted range `0.5`–`1`) to tune the alert threshold. The artifact is stored in XGBoost's JSON format rather than Python pickle. If no artifact is installed, PhishLens continues with the existing heuristics, feeds, and other optional classifier. Model metrics are dataset-specific and do not guarantee future detection quality.
 
+## Included phishing dataset
+
+`data/phishing.csv` contains engineered website features and class labels, not raw URLs, so it is not directly compatible with the current trainers' `url,label` input. The CSV is from [vaibhavbichave/Phishing-URL-Detection](https://github.com/vaibhavbichave/Phishing-URL-Detection/blob/master/phishing.csv). The underlying dataset is Mohammad and McCluskey's [Phishing Websites dataset](https://doi.org/10.24432/C51W2X), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## API
 
 `POST /api/scan`
@@ -103,13 +107,13 @@ Training requires at least four distinct URL hosts and both classes represented 
 { "url": "https://example.com" }
 ```
 
-Returns `verdict`, `risk_score` (1–10), `max_score` (10), triggered `checks`, `all_checks`, domain/page details, threat-feed statuses, both model statuses/predictions/confidences, and a UTC scan timestamp. Scores above 3 are Suspicious; scores of 6 or more are Phishing. A positive trained-model result, a brand-impersonation URL combined with account-related terms, or a password form posting to a different registered domain raises the score to a high-risk level. Brand checks include Amazon, Apple, Facebook, Google, Microsoft, Netflix, PayPal, SBI, HDFC, Paytm, IRCTC, and Aadhaar. Invalid URLs and private/reserved destinations return an HTTP 400 response. Excess scans return HTTP 429.
+Returns `verdict`, `risk_score` (0–5), `max_score` (5), triggered `checks`, `all_checks`, domain/page details, threat-feed statuses, both model statuses/predictions/confidences, and a UTC scan timestamp. Scores from 0.0–1.4 are Low Risk, 1.5–3.4 are Medium Risk, and 3.5–5.0 are High Risk. DNS failures and private/reserved or loopback addresses are treated as warnings for static analysis and do not automatically classify the URL as phishing. Invalid URLs and unsafe network targets are rejected during network checks without disabling the static-analysis protections. Excess scans return HTTP 429.
 
 `GET /api/health` returns a health status; `GET /api/samples` returns safe and suspicious-pattern sample inputs. Sample phishing-looking addresses use the reserved `.example` domain and are not real phishing sites.
 
 ## External security tools
 
-Password Check, QR Tools, and UPI ID Check are implemented on the PhishLens tools page. Password strength checks stay in the browser; QR creation and decoding also run locally in the browser and never open decoded content; UPI ID checks validate format only and do not verify an account or owner. The existing browser bundle is generated from the pinned npm dependencies with `npm install` and `npm run build`.
+Password Check and QR Tools are implemented on the PhishLens tools page. Password strength checks stay in the browser; QR creation and decoding also run locally in the browser and never open decoded content. The existing browser bundle is generated from the pinned npm dependencies with `npm install` and `npm run build`.
 
 ## Tests
 
@@ -126,8 +130,7 @@ docker run --rm -p 8000:8000 --env-file .env phishlens
 
 ## PhishLens tools
 
-The `/tools` page includes native SSL certificate, public DNS, safe redirect-expansion, RDAP website-age, IP reputation, and full scam-website checks. These are available through `POST /api/tools/{tool}` with a JSON body such as `{"value":"example.com"}`. Tool names are `ssl`, `dns`, `expand`, `age`, `ip-reputation`, and `scam-check`. Scanning and redirect expansion validate public destinations and block private/reserved addresses. Website age depends on RDAP availability; IP reputation uses VirusTotal and requires `VIRUSTOTAL_API_KEY`. Password strength, QR generation/reading, and UPI ID format checks run on the tools page without opening external websites.
-
+The `/tools` page includes native SSL certificate, public DNS, safe redirect-expansion, RDAP website-age, IP reputation, and full scam-website checks. These are available through `POST /api/tools/{tool}` with a JSON body such as `{"value":"example.com"}`. Tool names are `ssl`, `dns`, `expand`, `age`, `ip-reputation`, and `scam-check`. Scanning and redirect expansion validate public destinations and block private/reserved addresses. Website age depends on RDAP availability; IP reputation uses VirusTotal and requires `VIRUSTOTAL_API_KEY`. Password strength and QR generation/reading run on the tools page without opening external websites.
 The `/about` page explains phishing and common types, including email phishing, spear phishing, whaling, smishing, vishing, clone phishing, QR phishing, and pharming, with basic safety guidance.
 
 ## Scanner behavior and limitations
